@@ -762,8 +762,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ep", help="話数または範囲 (例: 1 / 1-3 / 1,3,5)")
     parser.add_argument("--all", action="store_true", help="全話")
     parser.add_argument("--quality", default=None,
-                        choices=list(QUALITY_HEIGHT),
-                        help="解像度。省略時は最高画質")
+                        help="解像度 (例: 1080p / 720p / 144p)。"
+                             "省略時は最高画質")
     parser.add_argument("--out", default=os.path.join(os.getcwd(), "downloads"),
                         help="出力ディレクトリ (既定: ./downloads)")
     parser.add_argument("--force", action="store_true",
@@ -816,12 +816,15 @@ def main(argv: list[str] | None = None) -> int:
         return download_youtube(
             resolve_ytdlp(args.yt_dlp), args.youtube, args.out,
             args.quality, args.force,
-            resolve_tool(args.ffmpeg, "ffmpeg", "--ffmpeg"))
+            resolve_tool(args.ffmpeg, "ffmpeg", "--ffmpeg"), args.port)
 
     if not args.work_id and not args.title and not args.catalog:
         die("作品名か --work-id、--catalog を指定してください。")
     if not args.catalog and not args.all and not args.ep:
         die("--ep か --all を指定してください。")
+    if args.quality and args.quality not in QUALITY_HEIGHT:
+        die(f"--quality は {', '.join(QUALITY_HEIGHT)} のいずれかです: "
+            f"{args.quality}")
 
     device_path, remember_device = resolve_device(args.device)
     if remember_device:

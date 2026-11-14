@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/ja/).
 - ダウンロードは Range による再開に対応し、通信断で最初からやり直さないようにした。
 - `--catalog` で新着・ジャンル・五十音・ランキング・特集・検索・workId から作品と話数を対話で選べるようにした。一覧はページ送りでき、選択後に続けて別の作品も選べる。
 - `--youtube` で無料公開の YouTube 動画を MP4 として保存できるようにした。`availability` を見て有料・メンバー限定を除外し、映像は H.264、音声は AAC を優先する。保存後に先頭 10 秒をデコードして再生確認する。
+- YouTube Movies など Widevine 付きの無料映画に対応した。Firefox でライセンス要求のひな形を採取し、`.wvd` で取得したキーで復号してから結合する。
 
 ### Changed
 

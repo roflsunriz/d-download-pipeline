@@ -30,6 +30,8 @@ Python 3.14 でソースから入れる場合、`--no-build-isolation` が必要
 | `ffmpeg` | `ffmpeg -version` | 主要な配布版で動作確認済み |
 | `yt-dlp` | `yt-dlp --version` | YouTube 対応のため頻繁に更新する。`--yt-dlp` で任意の実行ファイルを指定できる |
 
+DRM 付きの YouTube 映画を保存する場合は、Firefox(Marionette 有効)と `.wvd` も必要になる。Firefox の起動は `README.md` の「事前準備」を参照する。
+
 ## 3. Firefox / Cookie
 
 - 初回は `MOZ_REMOTE_DEBUGGING_PORT` を設定して Firefox を起動する。

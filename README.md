@@ -116,12 +116,23 @@ python d_download_pipeline.py --catalog --device C:\path\to\device.wvd --ep 1-3 
 python d_download_pipeline.py --youtube "https://www.youtube.com/watch?v=..." --quality 720p
 ```
 
-- 既定は最高画質。`--quality` は高さの上限として働きます
+- 既定は最高画質。`--quality` は高さの上限として働きます(例: `144p`、`720p`)
 - ファイル名は `<タイトル> [<ID>] <解像度>.mp4`。既にあればスキップし、`--force` で取り直します
 - `availability` が `premium` や `subscriber_only` の場合は中止します。ライブ配信は対象外です
 - 映像は H.264、音声は AAC を優先します。該当がなければ他のコーデックを使います
-- 保存後に先頭 10 秒をデコードして再生確認します。YouTube の無料公開動画は DRM で暗号化されていないため、復号処理はありません
+- 保存後に先頭 10 秒をデコードして再生確認します
 - `yt-dlp` が必要です。PATH に無ければ `--yt-dlp` で指定します
+
+### DRM 付きの映画
+
+無料公開でも Widevine で保護された映画(YouTube Movies など)に対応します。
+
+1. Firefox(Marionette 有効)で動画を再生し、ライセンス要求のひな形を採取します
+2. `.wvd` でライセンスを取得します(`--device` 省略時は自動検出)
+3. 暗号化ストリームを取得し、`ffmpeg` の `-decryption_key` で復号して結合します
+4. 保存後に再生確認します
+
+DRM の復号には Firefox と `.wvd` が必要です。`--port` で Marionette のポートを指定できます。
 
 ## オプション
 
@@ -134,7 +145,7 @@ python d_download_pipeline.py --youtube "https://www.youtube.com/watch?v=..." --
 | `--work-id` | — | workId を直接指定し、検索を省略する |
 | `--ep` | — | 話数(`1`、`1-3`、`1,3,5`) |
 | `--all` | 無効 | 全話を対象にする |
-| `--quality` | 最高画質 | `1080p` / `720p` / `480p` / `360p`。指定がなければ最も高い解像度と最も高い音声ビットレートを使う。指定した解像度がなければ最も近いものを使う |
+| `--quality` | 最高画質 | 高さの指定。YouTube は `144p` など任意の高さ。dアニメは `1080p` / `720p` / `480p` / `360p`。指定がなければ最も高い解像度を使う |
 | `--out` | `./downloads` | 出力先ディレクトリ |
 | `--force` | 無効 | 既存の出力を無視して取得し直す |
 | `--device` | 自動検出 | Widevine デバイスファイル。省略時は「記憶 → スクリプト隣 → MFT 検索」の順に探す |

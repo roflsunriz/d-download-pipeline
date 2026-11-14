@@ -55,7 +55,14 @@
 - `-S "vcodec:h264,acodec:aac"` を付けると、360p では `avc1` + `mp4a`(format 18)が選ばれた。付けない場合は AV1 + AAC が選ばれることがある。
 - 出力名に解像度を入れておかないと、別の `--quality` で再実行したときに別ファイルにならず、既存ファイルをスキップしてしまう。
 - `yt-dlp` は YouTube 側の変更に追随する必要があり、version を固定しない。
-- 無料公開の YouTube 動画は Widevine などの DRM で暗号化されていない。yt-dlp が署名・cipher を処理し、ffmpeg で結合した時点で平文の H.264/AAC になるため、`mp4decrypt` に相当する復号は不要。DRM 付き形式は yt-dlp が既定で避け、`has_drm` を持つ。
+- 通常の無料公開動画は DRM で暗号化されていない。yt-dlp が署名・cipher を処理し、ffmpeg で結合した時点で平文の H.264/AAC になる。
+- 無料公開でも **YouTube Movies の映画は Widevine 保護** されている。通常の `--dump-single-json` では storyboard しか返らないので、`--allow-unplayable-formats --extractor-args "youtube:formats=dashy"` で DRM 形式を取得する。DRM 形式は `has_drm: true` を持つ。
+- DRM のライセンス URL は `https://www.youtube.com/youtubei/v1/player/get_drm_license`。要求は JSON で、`context` / `drmSystem`(DRM_SYSTEM_WIDEVINE)/ `videoId` / `cpn` / `sessionId` / `licenseRequest`(base64 チャレンジ)/ `drmParams` を含む。応答の `license` は URL-safe base64。
+- ライセンス要求には `Authorization`(SAPISIDHASH)などのヘッダが必要。ブラウザでの再生から採取したひな形を使い、`licenseRequest` だけ自前 CDM のチャレンジに差し替えると 200 が返り、キーが得られる(実測)。
+- ブラウザが受け取ったライセンスの鍵はセッション鍵で暗号化されており、そのままでは使えない。自前 CDM で `parse_license` した `get_keys()` の 16 バイト鍵を使う。
+- 映像は `cenc`、音声は `cbcs` だった(2026-11-15 時点)。Bento4 1.6 の `mp4decrypt` は cbcs の音声を正しく復号できなかったが、`ffmpeg -decryption_key <32hex> -i <in> -c copy <out>` は映像・音声とも復号できた。
+- PSSH は暗号化ストリームの init セグメントに含まれる(`pssh` ボックス)。YouTube の PSSH は `YOUTUBE:<16桁>` の KID を持つ。
+- ライセンス採取は Firefox の page realm で行う必要がある。YouTube は **Trusted Types** (`require-trusted-types-for 'script'`) を有効にしており、`script.textContent = "..."` は CSP 違反になる。`trustedTypes.createPolicy(...).createScript(...)` を経由すると注入できる。`document.defaultView` への代入や sandbox の `window` への代入はページに反映されない。
 - 保存後の再生確認は `ffmpeg -v error -t 10 -i <file> -f null -` の stderr 行数で判定する。暗号化されたままなら数千行、正常なら 0 行になる。
 - 実測確認日: 2026-11-15。
 
