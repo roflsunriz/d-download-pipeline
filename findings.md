@@ -30,7 +30,7 @@
 
 ## 依存関係
 
-- `construct` は 2.8.8 に固定する。2.9 以降は `pymp4` が `String` 不在で失敗し、`pywidevine` も `Const` の引数順が変わる。
+- `construct` は 2.8.8 に固定する。`pymp4` 1.4.0 が `construct==2.8.8` を厳密に要求し、2.9 以降では `pymp4` が `String` 不在で失敗し、`pywidevine` も `Const` の引数順が変わる。
 - Python 3.14 で `construct 2.8.8` をソースから入れる場合は `--no-build-isolation` が必要だった。
 - `pywidevine` 1.9 の `Cdm` に `close_all()` はない。`close(session_id)` を使う。
 
