@@ -41,7 +41,7 @@ def fetch_metadata(tool: str, url: str) -> dict[str, Any]:
 
 
 def download(tool: str, url: str, out_dir: str, quality: str | None,
-             force: bool) -> int:
+             force: bool, ffmpeg: str) -> int:
     """無料公開の動画を 1 本保存する。"""
     meta = fetch_metadata(tool, url)
     availability = meta.get("availability")
@@ -75,14 +75,51 @@ def download(tool: str, url: str, out_dir: str, quality: str | None,
         "-S", "vcodec:h264,acodec:aac",
         "-f", selector,
         "--merge-output-format", "mp4",
+        "--ffmpeg-location", ffmpeg,
         "--no-playlist",
         "--newline",
         "-o", os.path.join(
             out_dir, f"%(title)s [%(id)s]{quality_suffix}.%(ext)s"),
         url,
     ]
+    before = _snapshot(out_dir)
     log("   保存しています ...")
     result = subprocess.run(args)
     if result.returncode != 0:
         die(f"保存に失敗しました (exit={result.returncode})")
+    changed = [path for path, mtime in _snapshot(out_dir).items()
+               if before.get(path) != mtime]
+    for path in changed:
+        verify_playable(ffmpeg, path)
     return 0
+
+
+def _snapshot(folder: str) -> dict[str, float]:
+    result: dict[str, float] = {}
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return result
+    for name in names:
+        if name.lower().endswith(".mp4"):
+            path = os.path.join(folder, name)
+            try:
+                result[path] = os.path.getmtime(path)
+            except OSError:
+                continue
+    return result
+
+
+def verify_playable(ffmpeg: str, path: str, seconds: int = 10) -> None:
+    """先頭を復号・デコードして、再生できる状態か確認する。"""
+    result = subprocess.run(
+        [ffmpeg, "-v", "error", "-t", str(seconds), "-i", path,
+         "-f", "null", "-"],
+        capture_output=True)
+    text = result.stderr.decode("utf-8", "replace")
+    errors = [line for line in text.splitlines() if line.strip()]
+    log(f"   再生確認: {os.path.basename(path)} "
+        f"(デコードエラー {len(errors)} 行)")
+    if errors:
+        log(f"   !! 先頭 {len(errors)} 行にエラーがあります。"
+            "再生できない場合は --force で取り直してください。")

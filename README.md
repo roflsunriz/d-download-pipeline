@@ -120,6 +120,7 @@ python d_download_pipeline.py --youtube "https://www.youtube.com/watch?v=..." --
 - ファイル名は `<タイトル> [<ID>] <解像度>.mp4`。既にあればスキップし、`--force` で取り直します
 - `availability` が `premium` や `subscriber_only` の場合は中止します。ライブ配信は対象外です
 - 映像は H.264、音声は AAC を優先します。該当がなければ他のコーデックを使います
+- 保存後に先頭 10 秒をデコードして再生確認します。YouTube の無料公開動画は DRM で暗号化されていないため、復号処理はありません
 - `yt-dlp` が必要です。PATH に無ければ `--yt-dlp` で指定します
 
 ## オプション

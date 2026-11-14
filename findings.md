@@ -55,6 +55,8 @@
 - `-S "vcodec:h264,acodec:aac"` を付けると、360p では `avc1` + `mp4a`(format 18)が選ばれた。付けない場合は AV1 + AAC が選ばれることがある。
 - 出力名に解像度を入れておかないと、別の `--quality` で再実行したときに別ファイルにならず、既存ファイルをスキップしてしまう。
 - `yt-dlp` は YouTube 側の変更に追随する必要があり、version を固定しない。
+- 無料公開の YouTube 動画は Widevine などの DRM で暗号化されていない。yt-dlp が署名・cipher を処理し、ffmpeg で結合した時点で平文の H.264/AAC になるため、`mp4decrypt` に相当する復号は不要。DRM 付き形式は yt-dlp が既定で避け、`has_drm` を持つ。
+- 保存後の再生確認は `ffmpeg -v error -t 10 -i <file> -f null -` の stderr 行数で判定する。暗号化されたままなら数千行、正常なら 0 行になる。
 - 実測確認日: 2026-11-15。
 
 ## 実行環境

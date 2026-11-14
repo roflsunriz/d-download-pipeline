@@ -90,10 +90,11 @@ python d_download_pipeline.py --youtube "https://www.youtube.com/watch?v=..." --
 確認項目:
 
 1. `[YouTube]` の行にタイトル、長さ、ライセンスが出る。
-2. 保存された MP4 が H.264 + AAC である(`ffprobe` で確認)。
-3. 同じ引数で再実行すると `has already been downloaded` と表示され、終了コード 0 になる。
-4. `--force` を付けると取り直す。
-5. `--quality` を変えると別名のファイルができる(例: `... [ID] 360p.mp4` と `... [ID] 720p.mp4`)。
+2. 保存後に `再生確認: ... (デコードエラー 0 行)` が出る。`0` 以外なら再生できない可能性があるため `--force` で取り直す。
+3. 保存された MP4 が H.264 + AAC である(`ffprobe` で確認)。
+4. 同じ引数で再実行すると `has already been downloaded` と表示され、終了コード 0 になる。
+5. `--force` を付けると取り直す。
+6. `--quality` を変えると別名のファイルができる(例: `... [ID] 360p.mp4` と `... [ID] 720p.mp4`)。
 
 ## 10. 異常系
 

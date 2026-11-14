@@ -813,8 +813,10 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.youtube:
         os.makedirs(args.out, exist_ok=True)
-        return download_youtube(resolve_ytdlp(args.yt_dlp), args.youtube,
-                                args.out, args.quality, args.force)
+        return download_youtube(
+            resolve_ytdlp(args.yt_dlp), args.youtube, args.out,
+            args.quality, args.force,
+            resolve_tool(args.ffmpeg, "ffmpeg", "--ffmpeg"))
 
     if not args.work_id and not args.title and not args.catalog:
         die("作品名か --work-id、--catalog を指定してください。")
