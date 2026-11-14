@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 import os
 import re
 import shutil
@@ -29,6 +30,24 @@ USER_AGENT = (
 QUALITY_HEIGHT = {"1080p": 1080, "720p": 720, "480p": 480, "360p": 360}
 DEFAULT_PORT = 2828
 MIN_OUTPUT_BYTES = 1 << 20
+PAGE_SIZE = 20
+
+# 五十音の行 (initialCollectionKey) と列 (consonantKey)。実測で確認済み。
+KANA_ROWS = ["あ", "か", "さ", "た", "な", "は", "ま", "や", "ら", "わ・英数"]
+KANA_COLUMNS = ["あ", "い", "う", "え", "お"]
+
+# ランキング種別 (rankingType)。ページ見出しと対応を確認済み。
+RANKING_TYPES = [
+    ("01", "デイリー (気になる)"),
+    ("02", "ウィークリー (気になる)"),
+    ("08", "デイリー (コンプリート)"),
+    ("04", "ウィークリー (コンプリート)"),
+]
+
+# テーマ (themeId)。名前は API の title から取得する。
+THEME_IDS = ["CO00000002", "CO00000001", "CO00000003",
+             "CO00000004", "CO00000005", "CO00001060"]
+GENRE_SOURCE = f"{BASE}/animestore/CF/search_index"
 
 
 # --------------------------------------------------------------------- utils
@@ -40,6 +59,15 @@ def log(message: str) -> None:
 def die(message: str) -> None:
     log(f"!! {message}")
     raise SystemExit(1)
+
+
+def ask(prompt_text: str) -> str | None:
+    """対話入力。EOF と Ctrl+C は None を返す。"""
+    try:
+        return input(prompt_text).strip()
+    except (EOFError, KeyboardInterrupt):
+        log("")
+        return None
 
 
 def default_cookie_path() -> str:
@@ -212,12 +240,264 @@ class Pipeline:
         ):
             part_id = match.group(1)
             label = re.sub(r"<[^>]+>", " ", match.group(2))
-            label = re.sub(r"\s+", " ", label).strip()
+            label = re.sub(r"\s+", " ", html.unescape(label)).strip()
             found.setdefault(part_id, label)
         if not found:
             die(f"話数を取得できませんでした: workId={work_id}")
         log(f"    {len(found)} 話")
         return dict(sorted(found.items()))
+
+    # -- catalog ---------------------------------------------------------
+    def _rest(self, endpoint: str, params: dict[str, Any]) -> dict[str, Any]:
+        response = requests.get(f"{BASE}/animestore/rest/{endpoint}",
+                                params=params, headers=self.headers, timeout=30)
+        if response.status_code != 200:
+            die(f"一覧の取得に失敗しました: HTTP {response.status_code}")
+        payload = response.json()
+        if payload.get("resultCd") != "00":
+            die(f"一覧の取得に失敗しました: "
+                f"resultCd={payload.get('resultCd')}")
+        return payload.get("data") or {}
+
+    def _work_page(self, endpoint: str, params: dict[str, Any], start: int,
+                   length: int) -> tuple[int, list[tuple[str, str]]]:
+        data = self._rest(endpoint, dict(params, start=start, length=length,
+                                         mainKeyVisualSize="2"))
+        works = []
+        for work in data.get("workList") or []:
+            info = work.get("workInfo") or {}
+            works.append((str(work.get("workId")),
+                          info.get("workTitle", "")))
+        total = data.get("maxCount")
+        return (int(total) if total is not None else len(works)), works
+
+    def catalog_genres(self) -> list[tuple[str, str]]:
+        response = requests.get(GENRE_SOURCE, headers=self.headers, timeout=30)
+        if response.status_code != 200:
+            die(f"ジャンル一覧の取得に失敗しました: HTTP {response.status_code}")
+        genres: list[tuple[str, str]] = []
+        for match in re.finditer(
+            r"href=[\"']?/animestore/gen_pc\?genreCd=(\d+)[^\"'>]*[\"']?"
+            r"[^>]*>(.*?)</a>",
+            response.text, re.S,
+        ):
+            name = re.sub(r"<[^>]+>", " ", match.group(2))
+            name = re.sub(r"\s+", " ", html.unescape(name)).strip()
+            entry = (match.group(1), name)
+            if entry not in genres:
+                genres.append(entry)
+        if not genres:
+            die("ジャンル一覧を解析できませんでした。")
+        return genres
+
+    def catalog_themes(self) -> list[tuple[str, str]]:
+        themes = []
+        for theme_id in THEME_IDS:
+            data = self._rest("WS000104", {"themeId": theme_id,
+                                           "start": 0, "length": 1})
+            themes.append((theme_id, data.get("title") or theme_id))
+        return themes
+
+    def browse(self, label: str,
+               fetch: Any) -> str | None:
+        """一覧を 1 ページずつ表示し、選ばれた workId を返す。"""
+        page = 0
+        while True:
+            total, works = fetch(page * PAGE_SIZE, PAGE_SIZE)
+            pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+            log(f"\n[{label}] {total} 件 / {pages} ページ "
+                f"(現在 {page + 1})")
+            if not works:
+                log("   (該当なし)")
+            for index, (work_id, title) in enumerate(works, 1):
+                log(f"  {index:>2}. {title} [{work_id}]")
+            log("  n:次へ  p:前へ  g:ページ指定  b:戻る  q:終了")
+            choice = ask("番号またはコマンド> ")
+            if choice is None or choice.lower() == "q":
+                return None
+            command = choice.lower()
+            if command == "n":
+                if page + 1 < pages:
+                    page += 1
+                else:
+                    log("   最後のページです。")
+                continue
+            if command == "p":
+                if page > 0:
+                    page -= 1
+                else:
+                    log("   最初のページです。")
+                continue
+            if command == "b":
+                return None
+            if command == "g":
+                target = ask("ページ番号> ")
+                if target and target.isdigit():
+                    page = min(max(int(target) - 1, 0), pages - 1)
+                continue
+            if command.isdigit():
+                index = int(command)
+                if 1 <= index <= len(works):
+                    return works[index - 1][0]
+                log("   範囲外の番号です。")
+                continue
+            log("   入力を解釈できませんでした。")
+
+    def choose_episodes(self, work_id: str, preset: str | None,
+                        use_all: bool) -> list[tuple[int, str]]:
+        episodes = self.episodes(work_id)
+        by_number: dict[int, str] = {}
+        for part_id in episodes:
+            try:
+                by_number[int(part_id[len(work_id):])] = part_id
+            except ValueError:
+                continue
+        ordered = sorted(by_number)
+        if use_all:
+            return [(number, by_number[number]) for number in ordered]
+        if preset:
+            selected = parse_episode_selection(preset, by_number)
+            return [(number, by_number[number]) for number in selected]
+
+        log(f"   全 {len(ordered)} 話")
+        for number in ordered:
+            log(f"  {number:>3}. {episodes[by_number[number]]}")
+        log("   例: 1-3 / 1,3,5 / all / 空欄=全話")
+        while True:
+            answer = ask("話数> ")
+            if answer is None:
+                return []
+            if answer == "" or answer.lower() in ("all", "*"):
+                return [(number, by_number[number]) for number in ordered]
+            try:
+                selected = parse_episode_selection(answer, by_number)
+            except SystemExit:
+                continue
+            if selected:
+                return [(number, by_number[number]) for number in selected]
+            log("   該当する話数がありません。")
+
+    def catalog(self, preset_episode: str | None, use_all: bool,
+                quality: str, out_dir: str) -> int:
+        ok = failed = 0
+        while True:
+            log("\n== カタログ ==")
+            log("  1. 新着")
+            log("  2. ジャンル")
+            log("  3. 五十音 (全作品)")
+            log("  4. ランキング")
+            log("  5. 特集")
+            log("  6. キーワード検索")
+            log("  7. workId を入力")
+            log("  q. 終了")
+            choice = ask("選択> ")
+            if choice is None or choice.lower() == "q":
+                break
+
+            work_id: str | None = None
+            if choice == "1":
+                work_id = self.browse(
+                    "新着",
+                    lambda start, length: self._work_page(
+                        "WS000104", {"themeId": "CO00000002"}, start, length))
+            elif choice == "2":
+                genres = self.catalog_genres()
+                for index, (code, name) in enumerate(genres, 1):
+                    log(f"  {index:>2}. {name} [{code}]")
+                pick = ask("ジャンル番号> ")
+                if pick and pick.isdigit() and 1 <= int(pick) <= len(genres):
+                    code, name = genres[int(pick) - 1]
+                    work_id = self.browse(
+                        name,
+                        lambda start, length, code=code: self._work_page(
+                            "WS000107", {"genreCd": code}, start, length))
+            elif choice == "3":
+                for index, row in enumerate(KANA_ROWS, 1):
+                    log(f"  {index:>2}. {row}行")
+                pick = ask("行番号> ")
+                if pick and pick.isdigit() and 1 <= int(pick) <= len(KANA_ROWS):
+                    row = int(pick)
+                    for index, column in enumerate(KANA_COLUMNS, 1):
+                        log(f"  {index}. {column}")
+                    pick = ask("列番号> ")
+                    if pick and pick.isdigit() and 1 <= int(pick) <= len(KANA_COLUMNS):
+                        column = int(pick)
+                        params = {"workTypeList": "anime",
+                                  "initialCollectionKey": str(row),
+                                  "consonantKey": str(column)}
+                        work_id = self.browse(
+                            f"{KANA_ROWS[row - 1]}行 "
+                            f"{KANA_COLUMNS[column - 1]}列",
+                            lambda start, length, params=params:
+                            self._work_page("WS000108", params, start, length))
+            elif choice == "4":
+                for index, (_, name) in enumerate(RANKING_TYPES, 1):
+                    log(f"  {index}. {name}")
+                pick = ask("ランキング番号> ")
+                if pick and pick.isdigit() and 1 <= int(pick) <= len(RANKING_TYPES):
+                    code, name = RANKING_TYPES[int(pick) - 1]
+                    params = {"rankingType": code, "needScene": "1",
+                              "mainSceneSize": "6"}
+                    work_id = self.browse(
+                        name,
+                        lambda start, length, params=params:
+                        self._work_page("WS000103", params, start, length))
+            elif choice == "5":
+                themes = self.catalog_themes()
+                for index, (_, name) in enumerate(themes, 1):
+                    log(f"  {index}. {name}")
+                pick = ask("特集番号> ")
+                if pick and pick.isdigit() and 1 <= int(pick) <= len(themes):
+                    theme_id, name = themes[int(pick) - 1]
+                    work_id = self.browse(
+                        name,
+                        lambda start, length, theme_id=theme_id:
+                        self._work_page("WS000104", {"themeId": theme_id},
+                                        start, length))
+            elif choice == "6":
+                keyword = ask("キーワード> ")
+                if keyword:
+                    work_id = self.browse(
+                        f"検索 {keyword}",
+                        lambda start, length, keyword=keyword:
+                        self._work_page("WS000105",
+                                        {"searchKey": keyword,
+                                         "vodTypeList": "svod_tvod"},
+                                        start, length))
+            elif choice == "7":
+                entered = ask("workId> ")
+                if entered and entered.isdigit():
+                    work_id = entered
+            else:
+                log("  入力を解釈できませんでした。")
+                continue
+
+            if not work_id:
+                continue
+
+            selected = self.choose_episodes(work_id, preset_episode, use_all)
+            if not selected:
+                continue
+            episode_ok = episode_failed = 0
+            for number, part_id in selected:
+                try:
+                    self.episode(part_id, quality, out_dir)
+                    episode_ok += 1
+                except SystemExit:
+                    episode_failed += 1
+                    log(f"   !! 第{number}話で失敗しました。続行します。")
+                except Exception as error:  # noqa: BLE001
+                    episode_failed += 1
+                    log(f"   !! 第{number}話でエラー: "
+                        f"{type(error).__name__}: {error}")
+            ok += episode_ok
+            failed += episode_failed
+            log(f"== この作品: 成功 {episode_ok} / 失敗 {episode_failed}")
+            again = ask("続けて別の作品を選びますか? (y/N) ")
+            if not again or again.lower() != "y":
+                break
+        log(f"== 合計: 成功 {ok} / 失敗 {failed}")
+        return 1 if failed else 0
 
     # -- play parameters -------------------------------------------------
     def play_params(self, part_id: str) -> dict[str, str]:
@@ -483,6 +763,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("title", nargs="?", default=None,
                         help="検索キーワード (作品名)")
+    parser.add_argument("--catalog", action="store_true",
+                        help="カタログから作品と話数を対話で選ぶ")
     parser.add_argument("--work-id", help="検索を省略して workId を指定")
     parser.add_argument("--ep", help="話数または範囲 (例: 1 / 1-3 / 1,3,5)")
     parser.add_argument("--all", action="store_true", help="全話")
@@ -537,9 +819,9 @@ def main(argv: list[str] | None = None) -> int:
         die("--device を指定してください。")
     if not args.device.endswith(".wvd") or not os.path.exists(args.device):
         die(f"デバイスファイルが見つかりません: {args.device}")
-    if not args.work_id and not args.title:
-        die("作品名か --work-id を指定してください。")
-    if not args.all and not args.ep:
+    if not args.work_id and not args.title and not args.catalog:
+        die("作品名か --work-id、--catalog を指定してください。")
+    if not args.catalog and not args.all and not args.ep:
         die("--ep か --all を指定してください。")
 
     pipeline = Pipeline(
@@ -552,6 +834,10 @@ def main(argv: list[str] | None = None) -> int:
         force=args.force,
     )
     pipeline.load_cookies()
+
+    if args.catalog:
+        os.makedirs(args.out, exist_ok=True)
+        return pipeline.catalog(args.ep, args.all, args.quality, args.out)
 
     work_id = pipeline.choose_work(args.title, args.work_id)
     log(f"   workId={work_id}")

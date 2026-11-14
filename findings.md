@@ -34,6 +34,14 @@
 - Python 3.14 で `construct 2.8.8` をソースから入れる場合は `--no-build-isolation` が必要だった。
 - `pywidevine` 1.9 の `Cdm` に `close_all()` はない。`close(session_id)` を使う。
 
+## カタログ
+
+- 全作品の一覧は `WS000108`。`initialCollectionKey`(行 1〜10 = あ/か/さ/た/な/は/ま/や/ら/わ・英数)と `consonantKey`(列 1〜5 = あ/い/う/え/お)、`workTypeList=anime` が必須。どちらかを欠くと `resultCd: 21`。
+- ジャンルのコードと名前は `/animestore/CF/search_index` のリンクから取れる。WS000107 は `genreCd` ごとに存在し、1・2 など未使用のコードは `resultCd: 21`。
+- 特集は `WS000104?themeId=CO...`。応答の `title` が特集名になる。`CO00000002` は「新着」で 800 件以上ある。
+- ランキングは `WS000103?rankingType=..`。`01` デイリー、`02` ウィークリー、`08` デイリー(コンプリート)、`04` ウィークリー(コンプリート)。一覧の `maxCount` は作品数ではなくランキングの母数になる。
+- 話数一覧のラベルには `&times;` などの HTML 実体参照が含まれる。`html.unescape` で戻す。
+
 ## 実行環境
 
 - Firefox は `MOZ_REMOTE_DEBUGGING_PORT` を設定して起動すると Marionette が有効になる。

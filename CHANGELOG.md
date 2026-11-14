@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/ja/).
 - Cookie をファイルへキャッシュし、2 回目以降はブラウザを必要としないようにした。
 - 既存の出力をスキップする再開機能と、`--force` による再取得を追加した。
 - ダウンロードは Range による再開に対応し、通信断で最初からやり直さないようにした。
+- `--catalog` で新着・ジャンル・五十音・ランキング・特集・検索・workId から作品と話数を対話で選べるようにした。一覧はページ送りでき、選択後に続けて別の作品も選べる。
 
 ### Fixed
 
