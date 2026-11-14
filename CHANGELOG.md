@@ -22,3 +22,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/ja/).
 - `mp4decrypt` へ KID をダッシュ付きで渡すと復号されず rc=0 になる問題を修正した。32 桁 hex で渡し、復号後の `tenc` 残留を検査する。
 - 暗号化情報を残したまま多重化して再生できないファイルができる問題を修正した。
 - 話数一覧のない古い作品で `contentUrls` に `highest` が無い場合に対応した。
+- 英語版 Windows のコンソール(cp1252 など)で日本語出力が `UnicodeEncodeError` になる問題を修正した。出力を UTF-8 に固定する。

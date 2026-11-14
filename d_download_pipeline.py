@@ -507,7 +507,20 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def configure_output_encoding() -> None:
+    """コンソールの既定コードページ (cp1252 など) でも日本語を出力できるようにする。"""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    configure_output_encoding()
     args = build_parser().parse_args(argv)
     if not args.device:
         die("--device を指定してください。")
