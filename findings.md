@@ -20,6 +20,7 @@
 - `oneTimeKey` は `WS010105` のたびに発行され、1 回限り。取得後すぐライセンスを要求する。
 - `parse_license()` は戻り値が `None`。鍵は `get_keys(session_id)` から読む。
 - KID は話ごとに異なる。KID と PSSH は MPD の `ContentProtection` から取る。
+- MPD の映像は 240p〜1080p(9 段階)、音声は 128k/192k の 2 段階だった(2026-11-15 時点)。`--quality` 省略時は映像の `height` 最大、同率なら `bandwidth` 最大を選ぶ。音声は常に `bandwidth` 最大を選ぶ。
 
 ## 再生情報 API
 

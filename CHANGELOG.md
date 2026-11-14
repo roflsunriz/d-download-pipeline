@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/ja/).
 
 ### Changed
 
+- `--quality` の既定を「最高画質」に変えた。省略時は最も高い解像度と最も高い音声ビットレートを選ぶ。
 - `--device` を省略できるようにした。指定 → 記憶したパス → スクリプトと同じフォルダ → NTFS の MFT 列挙の順に `.wvd` を探し、見つけたパスを次回以降のために保存する。記憶したパスが消えていた場合は再検索する。
 
 ### Fixed

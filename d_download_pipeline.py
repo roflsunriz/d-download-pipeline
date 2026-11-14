@@ -99,7 +99,14 @@ def parse_episode_selection(text: str, available: Iterable[int]) -> list[int]:
     return result
 
 
-def pick_representation(representations: list[dict], target_height: int) -> dict:
+def pick_representation(representations: list[dict],
+                        target_height: int | None) -> dict:
+    if not representations:
+        die("MPD に映像トラックがありません。")
+    if target_height is None:
+        return max(representations,
+                   key=lambda r: (r.get("height") or 0,
+                                  r.get("bandwidth", 0)))
     exact = [r for r in representations if r.get("height") == target_height]
     if exact:
         candidates = exact
@@ -357,7 +364,7 @@ class Pipeline:
             log("   該当する話数がありません。")
 
     def catalog(self, preset_episode: str | None, use_all: bool,
-                quality: str, out_dir: str) -> int:
+                quality: str | None, out_dir: str) -> int:
         ok = failed = 0
         while True:
             log("\n== カタログ ==")
@@ -679,8 +686,8 @@ class Pipeline:
                 f"{result.stderr.decode('utf-8', 'replace').strip()[-600:]}")
 
     # -- one episode -----------------------------------------------------
-    def episode(self, part_id: str, quality: str, out_dir: str) -> str:
-        log(f"== partId={part_id} ({quality})")
+    def episode(self, part_id: str, quality: str | None, out_dir: str) -> str:
+        log(f"== partId={part_id} ({quality or '最高画質'})")
         play = self.play_params(part_id)
         log(f"   {play['title']}")
 
@@ -695,8 +702,9 @@ class Pipeline:
         log(f"   KID: {manifest['kid']}")
         key = self.content_key(manifest, play)
 
-        video = pick_representation(manifest["video"],
-                                    QUALITY_HEIGHT.get(quality, 720))
+        video = pick_representation(
+            manifest["video"],
+            QUALITY_HEIGHT[quality] if quality else None)
         audio = max(manifest["audio"], key=lambda r: r["bandwidth"])
         if not video.get("url") or not audio.get("url"):
             die("MPD の BaseURL がありません。")
@@ -747,8 +755,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--work-id", help="検索を省略して workId を指定")
     parser.add_argument("--ep", help="話数または範囲 (例: 1 / 1-3 / 1,3,5)")
     parser.add_argument("--all", action="store_true", help="全話")
-    parser.add_argument("--quality", default="720p",
-                        choices=list(QUALITY_HEIGHT), help="解像度")
+    parser.add_argument("--quality", default=None,
+                        choices=list(QUALITY_HEIGHT),
+                        help="解像度。省略時は最高画質")
     parser.add_argument("--out", default=os.path.join(os.getcwd(), "downloads"),
                         help="出力ディレクトリ (既定: ./downloads)")
     parser.add_argument("--force", action="store_true",

@@ -53,6 +53,9 @@ Cookie は既定で `%USERPROFILE%\.cache\d-download-pipeline\cookies.txt` に�
 # 1 話
 python d_download_pipeline.py "作品名" --device C:\path\to\device.wvd --ep 1
 
+# 最高画質 (--quality 省略時)
+python d_download_pipeline.py "作品名" --ep 1
+
 # 範囲指定
 python d_download_pipeline.py "作品名" --device C:\path\to\device.wvd --ep 1-3
 
@@ -114,7 +117,7 @@ python d_download_pipeline.py --catalog --device C:\path\to\device.wvd --ep 1-3 
 | `--work-id` | — | workId を直接指定し、検索を省略する |
 | `--ep` | — | 話数(`1`、`1-3`、`1,3,5`) |
 | `--all` | 無効 | 全話を対象にする |
-| `--quality` | `720p` | `1080p` / `720p` / `480p` / `360p`。該当がなければ最も近い解像度を使う |
+| `--quality` | 最高画質 | `1080p` / `720p` / `480p` / `360p`。指定がなければ最も高い解像度と最も高い音声ビットレートを使う。指定した解像度がなければ最も近いものを使う |
 | `--out` | `./downloads` | 出力先ディレクトリ |
 | `--force` | 無効 | 既存の出力を無視して取得し直す |
 | `--device` | 自動検出 | Widevine デバイスファイル。省略時は「記憶 → スクリプト隣 → MFT 検索」の順に探す |
