@@ -18,10 +18,10 @@ jobs:
         python: ["3.12", "3.13", "3.14"]
     steps:
       - name: チェックアウト
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Python セットアップ
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
 
