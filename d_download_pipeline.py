@@ -508,11 +508,22 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def configure_output_encoding() -> None:
-    """コンソールの既定コードページ (cp1252 など) でも日本語を出力できるようにする。"""
+    """コンソールのコードページで日本語を出せない場合だけ UTF-8 に切り替える。
+
+    cp1252 などのコンソールではそのまま出力すると UnicodeEncodeError になる。
+    一方、cp932 など日本語を出せるコンソールでは元のエンコーディングを保つ。
+    """
+    sample = "日本語"
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is None:
             continue
+        encoding = getattr(stream, "encoding", None) or "utf-8"
+        try:
+            sample.encode(encoding)
+            continue
+        except (UnicodeEncodeError, LookupError):
+            pass
         try:
             reconfigure(encoding="utf-8", errors="replace")
         except (OSError, ValueError):
