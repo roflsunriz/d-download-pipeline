@@ -1,0 +1,28 @@
+title: "[Q&A] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        実行したコマンドと出力を書いてください。Cookie、`.wvd`、ライセンスの実値は伏せてください。
+  - type: textarea
+    id: question
+    attributes:
+      label: 質問
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: 実行したコマンド
+      render: powershell
+    validations:
+      required: false
+  - type: textarea
+    id: output
+    attributes:
+      label: 出力
+      description: 最後の 20 行程度
+      render: text
+    validations:
+      required: false

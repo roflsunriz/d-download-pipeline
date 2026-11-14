@@ -1,0 +1,25 @@
+title: "[Ideas] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        機能要望・改善案を書いてください。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 解決したいこと
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 案
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 検討した代替案
+    validations:
+      required: false

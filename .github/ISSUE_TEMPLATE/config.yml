@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 使い方の質問
+    url: https://github.com/roflsunriz/d-download-pipeline/discussions/categories/q-a
+    about: まず README と SUPPORT.md を確認してください
+  - name: セキュリティ報告
+    url: https://github.com/roflsunriz/d-download-pipeline/security/advisories/new
+    about: 脆弱性は非公開で報告してください

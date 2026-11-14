@@ -1,0 +1,6 @@
+# pywidevine 1.9 は pymp4 経由で construct を要求する。
+# construct 2.9 以降は pymp4 と非互換のため固定する (findings.md 参照)。
+construct==2.8.8
+marionette-driver>=3.7,<4
+pywidevine>=1.9,<2
+requests>=2.32,<3

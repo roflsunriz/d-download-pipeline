@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.cache/
+downloads/
+work_*/
+.env
+COMMON-AGENTS.md
+subagents/

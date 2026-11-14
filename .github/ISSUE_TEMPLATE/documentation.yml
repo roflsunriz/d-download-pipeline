@@ -1,0 +1,32 @@
+name: Documentation
+description: 文書の誤り・不足の報告
+title: "[Docs] "
+labels: ["documentation"]
+body:
+  - type: input
+    id: file
+    attributes:
+      label: 対象ファイル
+      placeholder: 例: README.md
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: 問題
+      description: どの記述が誤りか、または何が不足しているか
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 修正案
+    validations:
+      required: false
+  - type: input
+    id: checked
+    attributes:
+      label: 確認した版
+      description: 確認した commit または tag
+    validations:
+      required: false

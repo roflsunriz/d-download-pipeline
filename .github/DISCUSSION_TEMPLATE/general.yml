@@ -1,0 +1,13 @@
+title: "[General] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        雑談・共有用です。不具合は Issue の Bug report を使ってください。
+  - type: textarea
+    id: body
+    attributes:
+      label: 内容
+      render: text
+    validations:
+      required: true

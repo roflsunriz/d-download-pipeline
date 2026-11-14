@@ -1,0 +1,54 @@
+name: Bug report
+description: 不具合の報告
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cookie、`.wvd`、トークン、ライセンスの実値は貼らないでください。
+  - type: input
+    id: version
+    attributes:
+      label: バージョン / コミット
+      description: 使用した commit hash または tag
+      placeholder: 例: 0.1.0 / a1b2c3d
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 環境
+      description: OS、Python、mp4decrypt、ffmpeg のバージョン
+      placeholder: Windows 11 24H2 / Python 3.14.10 / Bento4 1.6.0 / ffmpeg 9.0.2
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: 実行したコマンド
+      description: 秘密情報は伏せる
+      render: powershell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待した結果
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 実際の結果
+      description: 出力の最後の 20 行程度
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      description: 同じ引数で再現するかも書いてください
+    validations:
+      required: true
