@@ -12,10 +12,10 @@ python d_download_pipeline.py --help
 ## 2. 引数エラー
 
 ```powershell
-python d_download_pipeline.py "作品名" --ep 1
+python d_download_pipeline.py "作品名"
 ```
 
-`--device` を省くと、メッセージを出して終了コード 2 になることを確認する。存在しないデバイスパスでは終了コード 1 になる。
+`--ep` と `--all` を省くと、メッセージを出して終了コード 1 になることを確認する。存在しない `--device` パスを指定した場合も終了コード 1 になる。
 
 ## 3. 実機能(1 話)
 
@@ -68,7 +68,18 @@ python d_download_pipeline.py --catalog --device C:\path\to\device.wvd --ep 1
 
 ページ数の表示と件数が、同じ入口の Web 表示と大きく食い違わないことを確認する。
 
-## 8. 異常系
+## 8. デバイスファイルの自動検出
+
+`--device` を省いたときの解決順を確認する。
+
+1. `%USERPROFILE%\.cache\d-download-pipeline\config.json` を削除し、`.wvd` をスクリプトと同じフォルダに置いて実行すると、`スクリプトと同じフォルダのデバイスファイルを使用` と表示され、`config.json` に `device` が記録される。
+2. 2 回目の実行では `記憶したデバイスファイルを使用` と表示される。
+3. `config.json` を消し、`.wvd` もスクリプトと同じフォルダに無い状態で実行すると、`PC 全体から検索中 (MFT)` と `管理者権限で MFT を走査します` が表示され、見つかったパスが使われる。所要時間は 10〜20 秒程度。
+4. `config.json` の `device` を存在しないパスに書き換えて実行すると、同じ MFT 検索が走り、`config.json` が実際のパスで上書きされる。
+5. `.wvd` が見つからない環境では、`--device` を促すメッセージで終了コード 1 になる。
+6. `--device` を別の `.wvd` で指定すると、`config.json` の `device` が更新される。
+
+## 9. 異常系
 
 | 条件 | 期待 |
 |---|---|

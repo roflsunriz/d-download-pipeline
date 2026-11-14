@@ -1,5 +1,11 @@
 # 判明事項
 
+## 構成
+
+- `d_download_pipeline.py`: CLI とパイプライン本体。
+- `device.py`: `.wvd` の解決、NTFS MFT 検索、`config.json` の読み書き。昇格した走査の入口もここ。
+- `common.py`: ログ、終了、対話入力。
+
 ## 認証 (Cookie)
 
 - 認証に必要な Cookie は HttpOnly を含む全件で、`JSESSIONID` が欠けると再生情報 API が `resultCd: 86` を返す。
@@ -43,6 +49,11 @@
 - 話数一覧のラベルには `&times;` などの HTML 実体参照が含まれる。`html.unescape` で戻す。
 
 ## 実行環境
+
+- デバイスファイルの解決順は「`--device` → `config.json` の `device` → スクリプトと同じフォルダの `*.wvd` → MFT 列挙」。記憶したパスが存在しない場合は、そのまま次の手段へ進んで再探索し、見つかったパスで `config.json` を上書きする。
+- PC 全体の検索は NTFS の MFT を `FSCTL_ENUM_USN_DATA` で列挙する。`GENERIC_READ` でボリュームを開くため管理者権限が必要で、非昇格時は自分自身を `runas` で起動して結果を JSON で受け取る。MFT 6,687,643 件で約 10〜12 秒、`where /R` は同じ環境で約 172 秒だった(2026-11-15 実測)。昇格できない場合は `where /R` へフォールバックする。
+- `FSCTL_ENUM_USN_DATA` の `HighUsn` に `0xFFFFFFFFFFFFFFFF` を渡すと `ERROR_HANDLE_EOF (38)` で 0 件になる。`FSCTL_QUERY_USN_JOURNAL` の `NextUsn` を渡すと列挙できる。入力は `MFT_ENUM_DATA_V0`(24 バイト)を使う。
+- 記憶先は Cookie と同じ `%USERPROFILE%\.cache\d-download-pipeline\config.json`。`D_DOWNLOAD_CACHE_DIR` で両方の置き場所を変えられる。
 
 - Firefox は `MOZ_REMOTE_DEBUGGING_PORT` を設定して起動すると Marionette が有効になる。
 - `COMMON-AGENTS.md` はシンボリックリンクの代わりにハードリンクで置いた。この環境ではシンボリックリンクの作成に管理者権限が必要で失敗したため。リンク先を置換すると追随しない点に注意する。

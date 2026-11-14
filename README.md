@@ -24,7 +24,16 @@ python -m pip install -r requirements.txt
 
 ### 1. Widevine デバイスファイル
 
-`.wvd` のパスを `--device` に渡します。
+`.wvd` は次の順で選ばれます。一度使ったパスは `%USERPROFILE%\.cache\d-download-pipeline\config.json` に記憶され、以降は `--device` を省略できます。
+
+1. `--device` の指定
+2. 記憶したパス
+3. スクリプトと同じフォルダの `.wvd`
+4. NTFS の MFT を列挙して PC 全体を検索(初回のみ)
+
+4 は MFT を読むため、初回だけ管理者権限の確認が表示されます。処理は数秒から十数秒です。記憶したパスが見つからない場合も、同じ手順で再検索して記憶を更新します。
+
+`--device` を指定し直すと記憶が更新されます。
 
 ### 2. Firefox の起動
 
@@ -65,6 +74,12 @@ python d_download_pipeline.py "作品名" --device C:\path\to\device.wvd --ep 1 
 
 検索結果が複数ある場合は、作品名が完全一致したものを優先し、一致がなければ先頭を使います。
 
+`--device` は最初の 1 回だけ指定すれば、以降は省略できます。
+
+```powershell
+python d_download_pipeline.py "作品名" --ep 1
+```
+
 ## カタログ
 
 `--catalog` を付けると、次の入口から作品を選べます。
@@ -102,7 +117,7 @@ python d_download_pipeline.py --catalog --device C:\path\to\device.wvd --ep 1-3 
 | `--quality` | `720p` | `1080p` / `720p` / `480p` / `360p`。該当がなければ最も近い解像度を使う |
 | `--out` | `./downloads` | 出力先ディレクトリ |
 | `--force` | 無効 | 既存の出力を無視して取得し直す |
-| `--device` | — | Widevine デバイスファイル(必須) |
+| `--device` | 自動検出 | Widevine デバイスファイル。省略時は「記憶 → スクリプト隣 → MFT 検索」の順に探す |
 | `--mp4decrypt` | PATH から解決 | `mp4decrypt` のパス |
 | `--ffmpeg` | PATH から解決 | `ffmpeg` のパス |
 | `--cookies` | `%USERPROFILE%\.cache\d-download-pipeline\cookies.txt` | Cookie の保存先 |
@@ -132,7 +147,7 @@ python d_download_pipeline.py "作品名" --device C:\path\to\device.wvd --ep 1-
 
 | 変数 | 説明 |
 |---|---|
-| `D_DOWNLOAD_CACHE_DIR` | Cookie キャッシュのディレクトリを上書きする |
+| `D_DOWNLOAD_CACHE_DIR` | Cookie と設定 (`config.json`) のディレクトリを上書きする |
 
 ## 終了コード
 

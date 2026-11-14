@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import html
+import json
 import os
 import re
 import shutil
@@ -21,6 +22,10 @@ from typing import Any, Iterable
 import requests
 from marionette_driver.marionette import Marionette
 from pywidevine import Cdm, Device, PSSH
+
+from common import ask, die, log
+from device import (config_path, default_cookie_path, load_config,
+                     resolve_device, save_config)
 
 BASE = "https://animestore.docomo.ne.jp"
 USER_AGENT = (
@@ -51,32 +56,6 @@ GENRE_SOURCE = f"{BASE}/animestore/CF/search_index"
 
 
 # --------------------------------------------------------------------- utils
-
-def log(message: str) -> None:
-    print(message, flush=True)
-
-
-def die(message: str) -> None:
-    log(f"!! {message}")
-    raise SystemExit(1)
-
-
-def ask(prompt_text: str) -> str | None:
-    """対話入力。EOF と Ctrl+C は None を返す。"""
-    try:
-        return input(prompt_text).strip()
-    except (EOFError, KeyboardInterrupt):
-        log("")
-        return None
-
-
-def default_cookie_path() -> str:
-    base = os.environ.get("D_DOWNLOAD_CACHE_DIR")
-    if base:
-        return os.path.join(base, "cookies.txt")
-    return os.path.join(os.path.expanduser("~"), ".cache",
-                        "d-download-pipeline", "cookies.txt")
-
 
 def resolve_tool(explicit: str | None, name: str, flag: str) -> str:
     if explicit:
@@ -774,8 +753,10 @@ def build_parser() -> argparse.ArgumentParser:
                         help="出力ディレクトリ (既定: ./downloads)")
     parser.add_argument("--force", action="store_true",
                         help="既存ファイルを無視して再取得")
-    parser.add_argument("--device", required=True,
-                        help="Widevine デバイスファイル (.wvd)")
+    parser.add_argument("--device", default=None,
+                        help="Widevine デバイスファイル (.wvd)。省略時は"
+                             "記憶したパス、スクリプトと同じフォルダ、"
+                             "MFT 検索の順に探す")
     parser.add_argument("--mp4decrypt", default=None,
                         help="mp4decrypt のパス (既定: PATH から解決)")
     parser.add_argument("--ffmpeg", default=None,
@@ -815,17 +796,20 @@ def configure_output_encoding() -> None:
 def main(argv: list[str] | None = None) -> int:
     configure_output_encoding()
     args = build_parser().parse_args(argv)
-    if not args.device:
-        die("--device を指定してください。")
-    if not args.device.endswith(".wvd") or not os.path.exists(args.device):
-        die(f"デバイスファイルが見つかりません: {args.device}")
     if not args.work_id and not args.title and not args.catalog:
         die("作品名か --work-id、--catalog を指定してください。")
     if not args.catalog and not args.all and not args.ep:
         die("--ep か --all を指定してください。")
 
+    device_path, remember_device = resolve_device(args.device)
+    if remember_device:
+        config = load_config()
+        config["device"] = device_path
+        save_config(config)
+        log(f"   デバイスファイルを記憶しました: {config_path()}")
+
     pipeline = Pipeline(
-        device_path=args.device,
+        device_path=device_path,
         mp4decrypt=resolve_tool(args.mp4decrypt, "mp4decrypt", "--mp4decrypt"),
         ffmpeg=resolve_tool(args.ffmpeg, "ffmpeg", "--ffmpeg"),
         cookie_path=args.cookies,
