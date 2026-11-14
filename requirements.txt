@@ -1,5 +1,6 @@
-# pywidevine 1.9 は pymp4 経由で construct を要求する。
-# construct 2.9 以降は pymp4 と非互換のため固定する (findings.md 参照)。
+# pywidevine 1.9 requires construct through pymp4.
+# Pin construct to 2.8.8: 2.9+ breaks pymp4 and pywidevine (see findings.md).
+# Keep this file ASCII-only; some tools decode it with the system locale.
 construct==2.8.8
 marionette-driver>=3.7,<4
 pywidevine>=1.9,<2
