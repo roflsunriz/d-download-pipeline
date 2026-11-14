@@ -28,6 +28,7 @@ Python 3.14 でソースから入れる場合、`--no-build-isolation` が必要
 |---|---|---|
 | `mp4decrypt` | `mp4decrypt` (引数なしで usage 表示) | Bento4 1.6 系で動作確認。KID の扱いは `findings.md` を参照 |
 | `ffmpeg` | `ffmpeg -version` | 主要な配布版で動作確認済み |
+| `yt-dlp` | `yt-dlp --version` | YouTube 対応のため頻繁に更新する。`--yt-dlp` で任意の実行ファイルを指定できる |
 
 ## 3. Firefox / Cookie
 

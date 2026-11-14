@@ -26,6 +26,8 @@ from pywidevine import Cdm, Device, PSSH
 from common import ask, die, log
 from device import (config_path, default_cookie_path, load_config,
                      resolve_device, save_config)
+from youtube import download as download_youtube
+from youtube import resolve_ytdlp
 
 BASE = "https://animestore.docomo.ne.jp"
 USER_AGENT = (
@@ -752,6 +754,10 @@ def build_parser() -> argparse.ArgumentParser:
                         help="検索キーワード (作品名)")
     parser.add_argument("--catalog", action="store_true",
                         help="カタログから作品と話数を対話で選ぶ")
+    parser.add_argument("--youtube", default=None,
+                        help="無料公開の YouTube 動画 URL")
+    parser.add_argument("--yt-dlp", default=None,
+                        help="yt-dlp のパス (既定: PATH から解決)")
     parser.add_argument("--work-id", help="検索を省略して workId を指定")
     parser.add_argument("--ep", help="話数または範囲 (例: 1 / 1-3 / 1,3,5)")
     parser.add_argument("--all", action="store_true", help="全話")
@@ -805,6 +811,11 @@ def configure_output_encoding() -> None:
 def main(argv: list[str] | None = None) -> int:
     configure_output_encoding()
     args = build_parser().parse_args(argv)
+    if args.youtube:
+        os.makedirs(args.out, exist_ok=True)
+        return download_youtube(resolve_ytdlp(args.yt_dlp), args.youtube,
+                                args.out, args.quality, args.force)
+
     if not args.work_id and not args.title and not args.catalog:
         die("作品名か --work-id、--catalog を指定してください。")
     if not args.catalog and not args.all and not args.ep:

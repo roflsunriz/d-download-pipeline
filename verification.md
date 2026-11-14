@@ -81,7 +81,21 @@ python d_download_pipeline.py --catalog --device C:\path\to\device.wvd --ep 1
 5. `.wvd` が見つからない環境では、`--device` を促すメッセージで終了コード 1 になる。
 6. `--device` を別の `.wvd` で指定すると、`config.json` の `device` が更新される。
 
-## 9. 異常系
+## 9. YouTube
+
+```powershell
+python d_download_pipeline.py --youtube "https://www.youtube.com/watch?v=..." --quality 360p
+```
+
+確認項目:
+
+1. `[YouTube]` の行にタイトル、長さ、ライセンスが出る。
+2. 保存された MP4 が H.264 + AAC である(`ffprobe` で確認)。
+3. 同じ引数で再実行すると `has already been downloaded` と表示され、終了コード 0 になる。
+4. `--force` を付けると取り直す。
+5. `--quality` を変えると別名のファイルができる(例: `... [ID] 360p.mp4` と `... [ID] 720p.mp4`)。
+
+## 10. 異常系
 
 | 条件 | 期待 |
 |---|---|

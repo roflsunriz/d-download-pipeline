@@ -49,6 +49,14 @@
 - ランキングは `WS000103?rankingType=..`。`01` デイリー、`02` ウィークリー、`08` デイリー(コンプリート)、`04` ウィークリー(コンプリート)。一覧の `maxCount` は作品数ではなくランキングの母数になる。
 - 話数一覧のラベルには `&times;` などの HTML 実体参照が含まれる。`html.unescape` で戻す。
 
+## YouTube
+
+- 無料公開の判定は `yt-dlp --dump-single-json` の `availability` を使う。`public` / `unlisted` を許可し、`premium` / `subscriber_only` / `needs_auth` / `private` は中止する。`is_live` が真なら対象外。
+- `-S "vcodec:h264,acodec:aac"` を付けると、360p では `avc1` + `mp4a`(format 18)が選ばれた。付けない場合は AV1 + AAC が選ばれることがある。
+- 出力名に解像度を入れておかないと、別の `--quality` で再実行したときに別ファイルにならず、既存ファイルをスキップしてしまう。
+- `yt-dlp` は YouTube 側の変更に追随する必要があり、version を固定しない。
+- 実測確認日: 2026-11-15。
+
 ## 実行環境
 
 - デバイスファイルの解決順は「`--device` → `config.json` の `device` → スクリプトと同じフォルダの `*.wvd` → MFT 列挙」。記憶したパスが存在しない場合は、そのまま次の手段へ進んで再探索し、見つかったパスで `config.json` を上書きする。

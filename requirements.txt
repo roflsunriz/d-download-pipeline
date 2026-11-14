@@ -5,3 +5,5 @@ construct==2.8.8
 marionette-driver>=3.7,<4
 pywidevine>=1.9,<2
 requests>=2.32,<3
+# yt-dlp is updated frequently to keep YouTube support working; do not pin.
+yt-dlp

@@ -7,8 +7,8 @@
 | OS | Windows 10 / 11(PowerShell 7 で確認) |
 | Python | 3.12 以上(3.14.10 で確認) |
 | ブラウザ | Firefox(Cookie の初回取得時のみ) |
-| 外部ツール | `mp4decrypt`(Bento4 1.6)、`ffmpeg` |
-| デバイスファイル | Widevine の `.wvd` |
+| 外部ツール | `mp4decrypt`(Bento4 1.6)、`ffmpeg`、`yt-dlp`(YouTube モードのみ) |
+| デバイスファイル | Widevine の `.wvd`(YouTube モードでは不要) |
 
 ## セットアップ
 
@@ -108,12 +108,28 @@ python d_download_pipeline.py --catalog --device C:\path\to\device.wvd --ep 1-3 
 
 ダウンロード後に「続けて別の作品を選びますか?」と表示されます。`y` で入口へ戻り、それ以外で終了します。
 
+## YouTube
+
+`--youtube` に無料公開(public / unlisted)の動画 URL を渡すと、映像と音声を結合して MP4 で保存します。
+
+```powershell
+python d_download_pipeline.py --youtube "https://www.youtube.com/watch?v=..." --quality 720p
+```
+
+- 既定は最高画質。`--quality` は高さの上限として働きます
+- ファイル名は `<タイトル> [<ID>] <解像度>.mp4`。既にあればスキップし、`--force` で取り直します
+- `availability` が `premium` や `subscriber_only` の場合は中止します。ライブ配信は対象外です
+- 映像は H.264、音声は AAC を優先します。該当がなければ他のコーデックを使います
+- `yt-dlp` が必要です。PATH に無ければ `--yt-dlp` で指定します
+
 ## オプション
 
 | オプション | 既定値 | 説明 |
 |---|---|---|
 | `title` | — | 検索キーワード(作品名) |
 | `--catalog` | 無効 | カタログから作品と話数を対話で選ぶ |
+| `--youtube` | — | 無料公開の YouTube 動画 URL |
+| `--yt-dlp` | PATH から解決 | `yt-dlp` のパス |
 | `--work-id` | — | workId を直接指定し、検索を省略する |
 | `--ep` | — | 話数(`1`、`1-3`、`1,3,5`) |
 | `--all` | 無効 | 全話を対象にする |
