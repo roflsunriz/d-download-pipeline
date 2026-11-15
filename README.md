@@ -6,7 +6,7 @@
 |---|---|
 | OS | Windows 10 / 11(PowerShell 7 で確認) |
 | Python | 3.12 以上(3.14.10 で確認) |
-| ブラウザ | Firefox(Cookie の初回取得時のみ) |
+| ブラウザ | Firefox(Cookie の取得時、YouTube DRM のライセンス採取時に使用。YouTube では自動起動) |
 | 外部ツール | `mp4decrypt`(Bento4 1.6)、`ffmpeg`、`yt-dlp`(YouTube モードのみ) |
 | デバイスファイル | Widevine の `.wvd`(YouTube モードでは不要) |
 
@@ -110,7 +110,7 @@ python d_download_pipeline.py --catalog --device C:\path\to\device.wvd --ep 1-3 
 
 ## YouTube
 
-`--youtube` に無料公開(public / unlisted)の動画 URL を渡すと、映像と音声を結合して MP4 で保存します。
+`--youtube` は **Widevine で保護された無料映画**を対象にします。DRM 保護されていない動画は対象外です(その場合は `yt-dlp` を直接使ってください)。
 
 ```powershell
 python d_download_pipeline.py --youtube "https://www.youtube.com/watch?v=..." --quality 720p
@@ -125,14 +125,26 @@ python d_download_pipeline.py --youtube "https://www.youtube.com/watch?v=..." --
 
 ### DRM 付きの映画
 
-無料公開でも Widevine で保護された映画(YouTube Movies など)に対応します。
+1. Firefox を **headless・ミュート**で自動起動します(起動済みなら接続だけ行います)
+2. 動画を再生し、ライセンス要求のひな形を採取します
+3. `.wvd` でライセンスを取得します(`--device` 省略時は自動検出)
+4. 暗号化ストリームを取得し、`ffmpeg` の `-decryption_key` で復号して結合します
+5. 保存後に再生確認します
 
-1. Firefox(Marionette 有効)で動画を再生し、ライセンス要求のひな形を採取します
-2. `.wvd` でライセンスを取得します(`--device` 省略時は自動検出)
-3. 暗号化ストリームを取得し、`ffmpeg` の `-decryption_key` で復号して結合します
-4. 保存後に再生確認します
+DRM の復号には `.wvd` が必要です。`--port` で Marionette のポートを指定できます。
 
-DRM の復号には Firefox と `.wvd` が必要です。`--port` で Marionette のポートを指定できます。
+### 暗号化済みファイルの復号
+
+`yt-dlp` などで取得済みの暗号化ファイル(mp4 / m4a)を、後から復号して結合できます。
+
+```powershell
+python d_download_pipeline.py --youtube "https://www.youtube.com/watch?v=..." --decrypt video.mp4 audio.m4a --out C:\path\to\out
+```
+
+- 映像、音声の順に渡します
+- ライセンスは `--youtube` の URL から取得します(Firefox を自動起動)
+- 出力名は `<タイトル> [<ID>].mp4`。既にあればスキップし、`--force` で取り直します
+- ファイルが 1 つだけの場合は、復号したファイルをそのまま出力します
 
 ## オプション
 
@@ -141,6 +153,7 @@ DRM の復号には Firefox と `.wvd` が必要です。`--port` で Marionette
 | `title` | — | 検索キーワード(作品名) |
 | `--catalog` | 無効 | カタログから作品と話数を対話で選ぶ |
 | `--youtube` | — | 無料公開の YouTube 動画 URL |
+| `--decrypt` | — | 復号する暗号化ファイル(映像→音声の順)。`--youtube` の URL をライセンス取得に使う |
 | `--yt-dlp` | PATH から解決 | `yt-dlp` のパス |
 | `--work-id` | — | workId を直接指定し、検索を省略する |
 | `--ep` | — | 話数(`1`、`1-3`、`1,3,5`) |

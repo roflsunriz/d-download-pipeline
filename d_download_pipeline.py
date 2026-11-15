@@ -26,6 +26,7 @@ from pywidevine import Cdm, Device, PSSH
 from common import ask, die, log
 from device import (config_path, default_cookie_path, load_config,
                      resolve_device, save_config)
+from youtube import decrypt_encrypted
 from youtube import download as download_youtube
 from youtube import resolve_ytdlp
 
@@ -756,6 +757,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="カタログから作品と話数を対話で選ぶ")
     parser.add_argument("--youtube", default=None,
                         help="無料公開の YouTube 動画 URL")
+    parser.add_argument("--decrypt", nargs="+", metavar="FILE", default=None,
+                        help="復号する暗号化ファイル (映像→音声の順)。"
+                             "--youtube の URL をライセンス取得に使う")
     parser.add_argument("--yt-dlp", default=None,
                         help="yt-dlp のパス (既定: PATH から解決)")
     parser.add_argument("--work-id", help="検索を省略して workId を指定")
@@ -811,6 +815,15 @@ def configure_output_encoding() -> None:
 def main(argv: list[str] | None = None) -> int:
     configure_output_encoding()
     args = build_parser().parse_args(argv)
+    if args.decrypt:
+        if not args.youtube:
+            die("--decrypt には --youtube <URL> が必要です。")
+        os.makedirs(args.out, exist_ok=True)
+        return decrypt_encrypted(
+            args.decrypt, args.youtube, args.out,
+            resolve_ytdlp(args.yt_dlp),
+            resolve_tool(args.ffmpeg, "ffmpeg", "--ffmpeg"),
+            args.port, args.force)
     if args.youtube:
         os.makedirs(args.out, exist_ok=True)
         return download_youtube(

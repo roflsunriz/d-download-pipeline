@@ -148,18 +148,81 @@ def _check_license(meta: dict[str, Any]) -> None:
 
 # ---------------------------------------------------------- DRM key capture
 
-def capture_license(port: int, url: str,
-                    timeout: float = 150.0) -> list[dict[str, Any]]:
-    """Firefox で再生し、ライセンス応答を採取する。"""
+def _firefox_binary() -> str | None:
+    for path in (r"C:\Program Files\Mozilla Firefox\firefox.exe",
+                 r"C:\Program Files (x86)\Mozilla Firefox\firefox.exe"):
+        if os.path.exists(path):
+            return path
+    return shutil.which("firefox")
+
+
+def _profile_dir() -> str:
+    """自動起動用のプロファイル。ミュートと初回画面の抑止だけを設定する。"""
+    from device import cache_dir
+
+    folder = os.path.join(cache_dir(), "firefox-profile")
+    os.makedirs(folder, exist_ok=True)
+    preferences = (
+        'user_pref("media.volume_scale", "0");\n'
+        'user_pref("browser.shell.checkDefaultBrowser", false);\n'
+        'user_pref("datareporting.policy.dataSubmissionEnabled", false);\n'
+        'user_pref("toolkit.telemetry.enabled", false);\n'
+        'user_pref("browser.startup.page", 0);\n'
+    )
+    user_js = os.path.join(folder, "user.js")
+    try:
+        with open(user_js, encoding="utf-8") as handle:
+            current = handle.read()
+    except OSError:
+        current = ""
+    if current != preferences:
+        with open(user_js, "w", encoding="utf-8") as handle:
+            handle.write(preferences)
+    return folder
+
+
+def _connect_or_start(port: int) -> tuple[Any, subprocess.Popen | None]:
+    """Marionette に接続する。未起動なら headless で起動する。"""
     from marionette_driver.marionette import Marionette
 
-    log("   ライセンスを取得するため Firefox で再生します ...")
-    client = Marionette(port=port)
     try:
+        client = Marionette(port=port)
         client.start_session()
-    except Exception as error:  # noqa: BLE001
-        die(f"Firefox の Marionette に接続できません (port {port}): "
-            f"{type(error).__name__}")
+        return client, None
+    except Exception:  # noqa: BLE001 - 未起動なら起動する
+        pass
+
+    binary = _firefox_binary()
+    if not binary:
+        die("Firefox が見つかりません。インストールするか --port を "
+            "確認してください。")
+    args = [binary, "--headless", "--marionette", "-no-remote",
+            "-profile", _profile_dir()]
+    log("   Firefox を headless で起動しています ...")
+    process = subprocess.Popen(args, env=dict(os.environ,
+                                              MOZ_CRASHREPORTER_DISABLE="1"),
+                               stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL)
+    for _ in range(60):
+        time.sleep(1)
+        try:
+            client = Marionette(port=port)
+            client.start_session()
+            return client, process
+        except Exception:  # noqa: BLE001 - 起動待ち
+            continue
+    try:
+        process.terminate()
+    except OSError:
+        pass
+    die("Firefox を起動しましたが Marionette に接続できませんでした。")
+
+
+def capture_license(port: int, url: str,
+                    timeout: float = 150.0) -> list[dict[str, Any]]:
+    """Firefox で再生し、ライセンス要求を採取する。"""
+    log("   ライセンスを取得するため Firefox で再生します ...")
+    client, started = _connect_or_start(port)
     try:
         client.navigate(url)
         installed = False
@@ -195,7 +258,19 @@ def capture_license(port: int, url: str,
         die("ライセンス要求を採取できませんでした。動画を再生できるか確認して"
             "ください。")
     finally:
-        client.close()
+        if started is not None:
+            try:
+                client.quit()
+            except Exception:  # noqa: BLE001
+                try:
+                    started.terminate()
+                except OSError:
+                    pass
+        else:
+            try:
+                client.close()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 def _extract_pssh(path: str) -> bytes | None:
@@ -406,55 +481,27 @@ def download(tool: str, url: str, out_dir: str, quality: str | None,
     output_path = os.path.join(
         out_dir, f"{_safe(title)} [{meta.get('id')}]{suffix}.mp4")
 
-    drm = False
-    if not _has_streams(meta):
-        drm_meta = fetch_metadata(tool, url, drm=True)
-        if _has_drm(drm_meta):
-            drm = True
-            meta = drm_meta
-            if height is None:
-                height = max(
-                    (item.get("height") for item in meta.get("formats") or []
-                     if item.get("height")), default=None)
-                suffix = f" {height}p" if height else ""
-                output_path = os.path.join(
-                    out_dir, f"{_safe(title)} [{meta.get('id')}]{suffix}.mp4")
-    if drm:
-        if not force and os.path.exists(output_path):
-            log(f"   スキップ (既存): {output_path}")
-            return 0
-        _download_drm(tool, url, out_dir, meta, quality, ffmpeg, port,
-                      output_path)
-        verify_playable(ffmpeg, output_path)
-        log(f"   完了: {output_path} ({os.path.getsize(output_path)} bytes)")
-        return 0
+    if _has_streams(meta) and not _has_drm(meta):
+        die("DRM 保護されていない動画です。yt-dlp を直接使ってください。")
+    drm_meta = fetch_metadata(tool, url, drm=True)
+    if not _has_drm(drm_meta):
+        die("DRM 形式を取得できませんでした。yt-dlp を最新にしてください。")
+    meta = drm_meta
+    if height is None:
+        height = max(
+            (item.get("height") for item in meta.get("formats") or []
+             if item.get("height")), default=None)
+        suffix = f" {height}p" if height else ""
+        output_path = os.path.join(
+            out_dir, f"{_safe(title)} [{meta.get('id')}]{suffix}.mp4")
 
-    args = [tool]
-    args += ["--force-overwrites"] if force else ["--no-overwrites"]
-    quality_suffix = f" {height}p" if height else ""
-    selector = "bv*+ba/b"
-    if height:
-        selector = f"bv*[height<={height}]+ba/b[height<={height}]/b"
-    args += [
-        "-S", "vcodec:h264,acodec:aac",
-        "-f", selector,
-        "--merge-output-format", "mp4",
-        "--ffmpeg-location", ffmpeg,
-        "--no-playlist",
-        "--newline",
-        "-o", os.path.join(
-            out_dir, f"%(title)s [%(id)s]{quality_suffix}.%(ext)s"),
-        url,
-    ]
-    before = _snapshot(out_dir)
-    log("   保存しています ...")
-    result = subprocess.run(args)
-    if result.returncode != 0:
-        die(f"保存に失敗しました (exit={result.returncode})")
-    changed = [path for path, mtime in _snapshot(out_dir).items()
-               if before.get(path) != mtime]
-    for path in changed:
-        verify_playable(ffmpeg, path)
+    if not force and os.path.exists(output_path):
+        log(f"   スキップ (既存): {output_path}")
+        return 0
+    _download_drm(tool, url, out_dir, meta, quality, ffmpeg, port,
+                  output_path)
+    verify_playable(ffmpeg, output_path)
+    log(f"   完了: {output_path} ({os.path.getsize(output_path)} bytes)")
     return 0
 
 
@@ -462,20 +509,76 @@ def _safe(name: str) -> str:
     return re.sub(r'[\\/:*?"<>|]', "_", name).strip()
 
 
-def _snapshot(folder: str) -> dict[str, float]:
-    result: dict[str, float] = {}
+def decrypt_encrypted(files: list[str], url: str, out_dir: str, tool: str,
+                      ffmpeg: str, port: int, force: bool) -> int:
+    """ダウンロード済みの暗号化ファイルを復号し、必要なら結合する。"""
+    from device import (config_path, load_config, resolve_device,
+                        save_config)
+
+    for path in files:
+        if not os.path.exists(path):
+            die(f"ファイルが見つかりません: {path}")
+    pssh = None
+    for path in files:
+        pssh = pssh or _extract_pssh(path)
+    if not pssh:
+        die("PSSH が見つかりません。暗号化されていないファイルかもしれません。")
+
+    meta = fetch_metadata(tool, url, drm=True) or {}
+    title = meta.get("title") or "decrypted"
+    video_id = meta.get("id") or ""
+    suffix = f" [{video_id}]" if video_id else ""
+    output_path = os.path.join(out_dir, f"{_safe(title)}{suffix}.mp4")
+    if not force and os.path.exists(output_path):
+        log(f"   スキップ (既存): {output_path}")
+        return 0
+
+    captures = capture_license(port, url)
+    device_path, remember = resolve_device(None)
+    if remember:
+        config = load_config()
+        config["device"] = device_path
+        save_config(config)
+        log(f"   デバイスファイルを記憶しました: {config_path()}")
+    keys = _license_keys(captures, pssh, device_path)
+    log(f"   キー: {len(keys)} 件")
+
+    workdir = os.path.join(out_dir, "decrypt")
+    os.makedirs(workdir, exist_ok=True)
+    decrypted: list[str] = []
+    for index, path in enumerate(files):
+        kid = _tenc_kid(path, keys)
+        if not kid:
+            die(f"ファイルの KID に対応するキーがありません: {path}")
+        destination = os.path.join(workdir, f"{index:02d}.dec.mp4")
+        log(f"   復号: {os.path.basename(path)} ({kid})")
+        _decrypt(ffmpeg, path, destination, kid, keys[kid])
+        decrypted.append(destination)
+
+    if len(decrypted) == 1:
+        shutil.move(decrypted[0], output_path)
+    else:
+        args = [ffmpeg, "-y", "-v", "error"]
+        for path in decrypted:
+            args += ["-i", path]
+        args += ["-map", "0:0", "-map", "1:0", "-c", "copy", output_path]
+        result = subprocess.run(args, capture_output=True)
+        if result.returncode != 0:
+            die("多重化に失敗しました: "
+                f"{result.stderr.decode('utf-8', 'replace').strip()[-400:]}")
+
+    for path in decrypted:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
     try:
-        names = os.listdir(folder)
+        os.rmdir(workdir)
     except OSError:
-        return result
-    for name in names:
-        if name.lower().endswith(".mp4"):
-            path = os.path.join(folder, name)
-            try:
-                result[path] = os.path.getmtime(path)
-            except OSError:
-                continue
-    return result
+        pass
+    verify_playable(ffmpeg, output_path)
+    log(f"   完了: {output_path} ({os.path.getsize(output_path)} bytes)")
+    return 0
 
 
 def verify_playable(ffmpeg: str, path: str, seconds: int = 10) -> None:
