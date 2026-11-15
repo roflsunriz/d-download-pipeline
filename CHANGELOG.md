@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/ja/).
 
 ### Changed
 
+- `--out` に `.mp4` のファイルパスを指定できるようにした(YouTube と `--decrypt`)。
+- L3 の `.wvd` では SD の鍵だけが取得できるため、`--youtube` は 480p 以下を自動選択する。720p 以上のファイルを `--decrypt` した場合は、対象 KID と取得できた KID を表示して終了する。
+
 - `--quality` の既定を「最高画質」に変えた。省略時は最も高い解像度と最も高い音声ビットレートを選ぶ。
 - `--device` を省略できるようにした。指定 → 記憶したパス → スクリプトと同じフォルダ → NTFS の MFT 列挙の順に `.wvd` を探し、見つけたパスを次回以降のために保存する。記憶したパスが消えていた場合は再検索する。
 

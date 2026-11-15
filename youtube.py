@@ -196,11 +196,13 @@ def _connect_or_start(port: int) -> tuple[Any, subprocess.Popen | None]:
     if not binary:
         die("Firefox が見つかりません。インストールするか --port を "
             "確認してください。")
-    args = [binary, "--headless", "--marionette", "-no-remote",
-            "-profile", _profile_dir()]
+    args = [binary, "--headless", "-width", "1920", "-height", "1080",
+            "--marionette", "-no-remote", "-profile", _profile_dir()]
     log("   Firefox を headless で起動しています ...")
     process = subprocess.Popen(args, env=dict(os.environ,
-                                              MOZ_CRASHREPORTER_DISABLE="1"),
+                                              MOZ_CRASHREPORTER_DISABLE="1",
+                                              MOZ_HEADLESS_WIDTH="1920",
+                                              MOZ_HEADLESS_HEIGHT="1080"),
                                stdout=subprocess.DEVNULL,
                                stderr=subprocess.DEVNULL)
     for _ in range(60):
@@ -237,18 +239,37 @@ def capture_license(port: int, url: str,
         if not installed:
             die("ライセンス採取用のフックを注入できませんでした。")
         deadline = time.time() + timeout
+        ticks = 0
         while time.time() < deadline:
             time.sleep(2)
+            ticks += 1
             try:
+                # ライセンス要求より前に高画質を要求しておく
                 client.execute_script(
-                    "const b = document.querySelector('.ytp-skip-ad-button');"
-                    "if (b) { b.click(); }"
-                    "const p = document.querySelector('.ytp-large-play-button');"
-                    "if (p && p.offsetParent !== null) { p.click(); }"
-                    "const v = document.querySelector('video');"
-                    "if (v && v.paused) { v.muted = true; "
-                    "v.play().catch(function(){}); }"
+                    "const player = document.getElementById('movie_player');"
+                    "if (player) {"
+                    "  try {"
+                    "    if (player.setPlaybackQualityRange) {"
+                    "      player.setPlaybackQualityRange('hd1080', 'hd1080');"
+                    "    }"
+                    "    if (player.setPlaybackQuality) {"
+                    "      player.setPlaybackQuality('hd1080');"
+                    "    }"
+                    "  } catch (e) {}"
+                    "}"
                     "return 1;")
+                if ticks >= 2:
+                    client.execute_script(
+                        "const b = document.querySelector("
+                        "'.ytp-skip-ad-button');"
+                        "if (b) { b.click(); }"
+                        "const p = document.querySelector("
+                        "'.ytp-large-play-button');"
+                        "if (p && p.offsetParent !== null) { p.click(); }"
+                        "const v = document.querySelector('video');"
+                        "if (v && v.paused) { v.muted = true; "
+                        "v.play().catch(function(){}); }"
+                        "return 1;")
                 raw = client.execute_script(
                     "return document.documentElement.dataset.cap || null;")
             except Exception:  # noqa: BLE001
@@ -349,6 +370,18 @@ def _tenc_kid(path: str, keys: dict[str, str]) -> str | None:
     return None
 
 
+def _tenc_kid_any(path: str) -> str | None:
+    with open(path, "rb") as handle:
+        data = handle.read(4 << 20)
+    index = data.find(b"tenc")
+    if index < 0:
+        return None
+    payload = data[index + 4:index + 40]
+    if len(payload) < 24:
+        return None
+    return payload[8:24].hex()
+
+
 def _decrypt(ffmpeg: str, source: str, destination: str, kid: str,
              key: str) -> None:
     result = subprocess.run(
@@ -391,6 +424,11 @@ def _pick_encrypted(tool: str, url: str, workdir: str,
     return videos[0], audios[0]
 
 
+def _sd_height(heights: list[int]) -> int | None:
+    eligible = [h for h in heights if h <= 480]
+    return max(eligible) if eligible else None
+
+
 def _download_drm(tool: str, url: str, out_dir: str, meta: dict[str, Any],
                   quality: str | None, ffmpeg: str, port: int,
                   output_path: str) -> None:
@@ -402,12 +440,18 @@ def _download_drm(tool: str, url: str, out_dir: str, meta: dict[str, Any],
                and (item.get("has_drm")
                     or DRM_FLAG in (item.get("format_note") or ""))]
     height = int(quality.rstrip("p")) if quality else None
+    sd = _sd_height(sorted(set(heights)))
+    if sd and (height is None or height > sd):
+        if height is not None:
+            log(f"   L3 のライセンスは SD までです。{sd}p を使います")
+        height = sd
     if height and heights:
         eligible = [h for h in heights if h <= height]
         height = max(eligible) if eligible else min(heights)
     log(f"   DRM 動画です (選択可能な高さ: {sorted(set(heights))})")
 
-    workdir = os.path.join(out_dir, f"yt_{meta.get('id') or 'drm'}")
+    workdir = os.path.join(os.path.dirname(output_path),
+                           f"yt_{meta.get('id') or 'drm'}")
     os.makedirs(workdir, exist_ok=True)
     video_enc, audio_enc = _pick_encrypted(tool, url, workdir, height)
 
@@ -431,7 +475,12 @@ def _download_drm(tool: str, url: str, out_dir: str, meta: dict[str, Any],
                                 (audio_enc, audio_dec)):
         kid = _tenc_kid(source, keys)
         if not kid:
-            die(f"ストリームの KID に対応するキーがありません: {source}")
+            file_kid = _tenc_kid_any(source)
+            die("ストリームの KID に対応するキーがありません: "
+                f"{source}\n   ファイルの KID: {file_kid or '不明'}\n"
+                f"   ライセンスの KID: {_describe_keys(keys)}\n"
+                "   SD のみ許可されている可能性があります。480p 以下で"
+                "取り直すか、L1 の .wvd を使ってください。")
         log(f"   復号: {os.path.basename(source)} ({kid})")
         _decrypt(ffmpeg, source, destination, kid, keys[kid])
 
@@ -478,7 +527,7 @@ def download(tool: str, url: str, out_dir: str, quality: str | None,
             die("--quality は 1080p や 144p のように指定してください。")
         height = int(match.group(1))
     suffix = f" {height}p" if height else ""
-    output_path = os.path.join(
+    output_path = _resolve_output(
         out_dir, f"{_safe(title)} [{meta.get('id')}]{suffix}.mp4")
 
     if _has_streams(meta) and not _has_drm(meta):
@@ -488,14 +537,14 @@ def download(tool: str, url: str, out_dir: str, quality: str | None,
         die("DRM 形式を取得できませんでした。yt-dlp を最新にしてください。")
     meta = drm_meta
     if height is None:
-        height = max(
-            (item.get("height") for item in meta.get("formats") or []
-             if item.get("height")), default=None)
+        heights = sorted({item.get("height") for item in meta.get("formats") or []
+                          if item.get("height")})
+        height = _sd_height(heights) or (heights[-1] if heights else None)
         suffix = f" {height}p" if height else ""
-        output_path = os.path.join(
+        output_path = _resolve_output(
             out_dir, f"{_safe(title)} [{meta.get('id')}]{suffix}.mp4")
 
-    if not force and os.path.exists(output_path):
+    if not force and os.path.isfile(output_path):
         log(f"   スキップ (既存): {output_path}")
         return 0
     _download_drm(tool, url, out_dir, meta, quality, ffmpeg, port,
@@ -507,6 +556,21 @@ def download(tool: str, url: str, out_dir: str, quality: str | None,
 
 def _safe(name: str) -> str:
     return re.sub(r'[\\/:*?"<>|]', "_", name).strip()
+
+
+def _resolve_output(out: str, default_name: str) -> str:
+    """--out が .mp4 ならファイルとして、それ以外はディレクトリとして扱う。"""
+    if out.lower().endswith(".mp4"):
+        parent = os.path.dirname(out)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        return out
+    os.makedirs(out, exist_ok=True)
+    return os.path.join(out, default_name)
+
+
+def _describe_keys(keys: dict[str, str]) -> str:
+    return ", ".join(sorted(keys)) or "(なし)"
 
 
 def decrypt_encrypted(files: list[str], url: str, out_dir: str, tool: str,
@@ -528,8 +592,8 @@ def decrypt_encrypted(files: list[str], url: str, out_dir: str, tool: str,
     title = meta.get("title") or "decrypted"
     video_id = meta.get("id") or ""
     suffix = f" [{video_id}]" if video_id else ""
-    output_path = os.path.join(out_dir, f"{_safe(title)}{suffix}.mp4")
-    if not force and os.path.exists(output_path):
+    output_path = _resolve_output(out_dir, f"{_safe(title)}{suffix}.mp4")
+    if (not force and os.path.isfile(output_path)):
         log(f"   スキップ (既存): {output_path}")
         return 0
 
@@ -543,13 +607,18 @@ def decrypt_encrypted(files: list[str], url: str, out_dir: str, tool: str,
     keys = _license_keys(captures, pssh, device_path)
     log(f"   キー: {len(keys)} 件")
 
-    workdir = os.path.join(out_dir, "decrypt")
+    workdir = os.path.join(os.path.dirname(output_path), "decrypt")
     os.makedirs(workdir, exist_ok=True)
     decrypted: list[str] = []
     for index, path in enumerate(files):
         kid = _tenc_kid(path, keys)
         if not kid:
-            die(f"ファイルの KID に対応するキーがありません: {path}")
+            file_kid = _tenc_kid_any(path)
+            die("ファイルの KID に対応するキーがありません: "
+                f"{path}\n   ファイルの KID: {file_kid or '不明'}\n"
+                f"   ライセンスの KID: {_describe_keys(keys)}\n"
+                "   SD のみ許可されている可能性があります。480p 以下で"
+                "取り直すか、L1 の .wvd を使ってください。")
         destination = os.path.join(workdir, f"{index:02d}.dec.mp4")
         log(f"   復号: {os.path.basename(path)} ({kid})")
         _decrypt(ffmpeg, path, destination, kid, keys[kid])

@@ -123,6 +123,8 @@ python d_download_pipeline.py --youtube "https://www.youtube.com/watch?v=..." --
 3. 出力が `<タイトル> [<ID>].mp4` になる。
 4. 同じ引数で再実行するとスキップされる。`--force` で取り直す。
 5. `--youtube` を省くと `--decrypt には --youtube <URL> が必要です` で終了コード 1 になる。
+6. `--out` に `.mp4` を指定すると、そのファイルへ出力される。
+7. 720p 以上のファイルでは、`ファイルの KID` と `ライセンスの KID` が表示され、SD のみである旨が出る。
 
 ## 10. 異常系
 

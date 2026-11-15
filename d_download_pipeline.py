@@ -818,14 +818,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.decrypt:
         if not args.youtube:
             die("--decrypt には --youtube <URL> が必要です。")
-        os.makedirs(args.out, exist_ok=True)
         return decrypt_encrypted(
             args.decrypt, args.youtube, args.out,
             resolve_ytdlp(args.yt_dlp),
             resolve_tool(args.ffmpeg, "ffmpeg", "--ffmpeg"),
             args.port, args.force)
     if args.youtube:
-        os.makedirs(args.out, exist_ok=True)
         return download_youtube(
             resolve_ytdlp(args.yt_dlp), args.youtube, args.out,
             args.quality, args.force,

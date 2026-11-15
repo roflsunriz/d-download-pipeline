@@ -66,6 +66,8 @@
 - ライセンス採取は Firefox の page realm で行う必要がある。YouTube は **Trusted Types** (`require-trusted-types-for 'script'`) を有効にしており、`script.textContent = "..."` は CSP 違反になる。`trustedTypes.createPolicy(...).createScript(...)` を経由すると注入できる。`document.defaultView` への代入や sandbox の `window` への代入はページに反映されない。
 - 保存後の再生確認は `ffmpeg -v error -t 10 -i <file> -f null -` の stderr 行数で判定する。暗号化されたままなら数千行、正常なら 0 行になる。
 - 取得済みの暗号化ファイルを復号する `--decrypt` は、ライセンス採取と鍵取得の処理を `--youtube` と共通化している。映像・音声を個別に `-decryption_key` で復号し、ffmpeg で結合する。
+- YouTube の DRM は **SD と HD で鍵が別**。実測では SD が `545ae973…`、HD(720p と 1080p で共通)が `2757dac2…`、音声が `9e776838…` だった。L3 の `.wvd` に発行されるのは SD と音声だけで、`authorizedFormats` は `DRM_TRACK_TYPE_SD` と `DRM_TRACK_TYPE_AUDIO` のみ。PSSH の KID を HD に差し替えても、`drmParams` の品質フィールドを変えても HD は発行されなかった。HD には L1 が必要とみられる。
+- 課金/認証なしの headless Firefox でも、この映画は 480p で再生され SD のライセンスが発行された。プレイヤーの画質切替 API では 480p のままだった。
 - 実測確認日: 2026-11-15。
 
 ## 実行環境
